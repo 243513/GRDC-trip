@@ -1,0 +1,14 @@
+{
+  "city": "Osak",
+  "max_seq_len": 14,
+  "d_model": 128,
+  "num_layers": 6,
+  "num_heads": 8,
+  "dff": 2048,
+  "time_dim": 48,
+  "batch_size": 32,
+  "epochs": 2,
+  "learning_rate": 1e-05,
+  "special_token_count": 7,
+  "device": "cuda"
+}
