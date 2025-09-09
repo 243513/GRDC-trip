@@ -14,9 +14,6 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 class TrajectoryDataProcessor:
     def __init__(self, city, max_seq_len=20, base_dir=None):
-        """
-        轨迹数据处理模块（增强版：整合地理距离特征）
-        """
         self.city = city
         self.max_seq_len = min(max_seq_len, 20)
         if base_dir is None:
@@ -131,7 +128,6 @@ class TrajectoryDataProcessor:
         if missing_pois:
             logger.warning(f"词汇表缺失{len(missing_pois)}个POI")
         vocab = self.special_tokens + poi_ids
-        # 保存词汇表
         with open(self.vocab_file, 'w') as f:
             f.write('\n'.join(vocab))
         self.token_to_id = {token: idx for idx, token in enumerate(vocab)}
@@ -143,7 +139,7 @@ class TrajectoryDataProcessor:
         self.sep_id = self.token_to_id[self.sep_token]
         self.sos_id = self.token_to_id[self.sos_token]
         self.eos_id = self.token_to_id[self.eos_token]
-        self.poi_num = len(poi_ids)  # POI的数量（不包括特殊token）
+        self.poi_num = len(poi_ids)  
     def process_trajectories(self):
         processed_counts = {'train': 0, 'val': 0, 'test': 0}
 
@@ -153,7 +149,7 @@ class TrajectoryDataProcessor:
             df['poi_list'] = df['poi_sequence'].apply(
                 lambda x: [str(p) for p in x.strip().split()]
             )
-            df = df[df['poi_list'].apply(len) >= 3]  # 先过滤短轨迹
+            df = df[df['poi_list'].apply(len) >= 3] 
             df['poi_list'] = df['poi_list'].apply(
                 lambda traj: traj[:self.max_seq_len] if len(traj) > self.max_seq_len else traj
             )
@@ -223,7 +219,7 @@ class TrajectoryDataProcessor:
                 label_ids = [-100] + labels + [-100]
                 padded_ids, attn_mask, _ = self.pad_and_mask(input_ids, self.max_seq_len)
                 padded_labels, _, _ = self.pad_and_mask(label_ids, self.max_seq_len)
-                padded_position_ids = position_ids[:self.max_seq_len]  # 截断
+                padded_position_ids = position_ids[:self.max_seq_len]  
                 if len(padded_position_ids) < self.max_seq_len:
                     padded_position_ids += [0] * (self.max_seq_len - len(padded_position_ids))
                 padded_rel_positions = []
@@ -268,12 +264,12 @@ class TrajectoryDataProcessor:
         if mid_len == 0:
             return token_ids
         method_weights = {
-            'no_aug': 0.2,  # 无增强
-            'token_cutoff': 0.15,  # 随机截断
-            # 'dropout': 0.15,  # 随机丢弃
-            'insert': 0.20,  # 随机插入
-            'mask': 0.2,  # 随机掩码
-            'replace': 0.25  # 随机替换
+            'no_aug': 0.2,  
+            'token_cutoff': 0.15,  
+            # 'dropout': 0.15, 
+            'insert': 0.20, 
+            'mask': 0.2,  
+            'replace': 0.25 
         }
         method = random.choices(
             list(method_weights.keys()),
@@ -282,7 +278,7 @@ class TrajectoryDataProcessor:
         if method == 'no_aug':
             return token_ids
         elif method == 'token_cutoff':
-            keep_len = random.randint(max(1, mid_len // 2), mid_len)  # 至少保留50%的点
+            keep_len = random.randint(max(1, mid_len // 2), mid_len)  
             start_idx = random.randint(0, mid_len - keep_len)
             selected_mid = mid_tokens[start_idx:start_idx + keep_len]
             return [start_token] + selected_mid + [end_token]
@@ -317,10 +313,8 @@ class TrajectoryDataProcessor:
         return token_ids
 
     def apply_masking(self, token_ids):
-        """只掩码起点和终点之间的中间点"""
         if len(token_ids) < 3:
             return token_ids, [-100] * len(token_ids)
-        # 获取中间点索引
         mid_indices = list(range(1, len(token_ids) - 1))
         if not mid_indices:
             return token_ids, [-100] * len(token_ids)
@@ -329,18 +323,12 @@ class TrajectoryDataProcessor:
         masked_ids = token_ids.copy()
         labels = [-100] * len(token_ids)
         for idx in mask_indices:
-            # 80%概率替换为[MASK]
             if random.random() < 0.8:
                 masked_ids[idx] = self.mask_id
-            # 10%概率替换为随机token
             elif random.random() < 0.5:
                 masked_ids[idx] = random.choice(list(self.token_to_id.values()))
-            # 10%概率保持原样
-            # 设置标签
             labels[idx] = token_ids[idx]
-
         return masked_ids, labels
-
     def generate_transition_matrix(self, smoothing=0.01, print_matrix=True):
 
         full_df = pd.concat([self.train_df, self.val_df, self.test_df])
@@ -404,12 +392,12 @@ class TrajectoryDataProcessor:
         self.traj_length_map = {}
         for key, lengths in length_counts.items():
             avg_length = sum(lengths) / len(lengths)
-            self.traj_length_map[key] = math.floor(avg_length)  # 向下取整
+            self.traj_length_map[key] = math.floor(avg_length)  
         all_lengths = [len(traj) for traj in combined_df['poi_list']]
         if all_lengths:
             self.global_avg_length = math.floor(sum(all_lengths) / len(all_lengths))
         else:
-            self.global_avg_length = 3  # 安全默认值
+            self.global_avg_length = 3  
             logger.warning("未找到有效轨迹，使用默认全局平均长度=3")
         return self.traj_length_map
     def prepare_finetune_data(self):
@@ -417,9 +405,7 @@ class TrajectoryDataProcessor:
         finetune_data = {'train': {}, 'val': {}, 'test': {}}
 
         for dataset in ['train', 'val', 'test']:
-            # 获取原始数据集（不包含增强数据）
             df = getattr(self, f'{dataset}_df')
-
             if 'is_augmented' in df.columns:
                 df = df[~df['is_augmented']]
             data = {
@@ -431,7 +417,6 @@ class TrajectoryDataProcessor:
             }
 
             for _, row in df.iterrows():
-                # 获取轨迹POI序列
                 poi_list = row['poi_list']
                 start_poi = row['start_poi']
                 end_poi = row['end_poi']
