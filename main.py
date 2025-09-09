@@ -304,7 +304,6 @@ def main():
             f"训练损失: MLM={mlm_loss:.4f} 对比={contrast_loss:.4f}  | "
             f"时间: {time.time() - epoch_start:.1f}s"
         )
-
     model.set_training_stage('pretrain')
     pretrain_model_path = model_dir / "best_pretrain_model.pt"
     if os.path.exists(pretrain_model_path):
